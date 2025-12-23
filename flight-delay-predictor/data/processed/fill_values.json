@@ -1,0 +1,15 @@
+{
+    "terminal": 1.0,
+    "destination_airport": 23.0,
+    "airline": 21.0,
+    "temp_c": 4.4,
+    "precip_mm": 0.0,
+    "wind_kph": 7.8,
+    "departure_traffic": 17.0,
+    "arrival_traffic": 16.0,
+    "day_in_month": 16.0,
+    "hour_sin": 0.0,
+    "hour_cos": -0.7071067811865475,
+    "weekday_sin": 0.0,
+    "weekday_cos": -0.22252093395631434
+}

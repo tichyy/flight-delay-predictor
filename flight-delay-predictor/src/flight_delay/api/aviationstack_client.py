@@ -24,10 +24,13 @@ def post_query(endpoint, params={}):
         print(e)
         st.error(f"Too many requests. Try again in 10 minutes.")
         return None
-    except requests.exceptions as e:
+    except requests.exceptions.RequestException as e:
         st.error(f"API request failed: {e}")
         return None
     
 @st.cache_data(ttl=1800) # Cache for 30 minutes
 def fetch_query(endpoint, params={}):
-    return post_query(endpoint, params)
+    res = post_query(endpoint, params)
+    if res is None:
+        raise Exception("API Failed - Prevent Caching")
+    return res

@@ -1,133 +1,121 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pydeck
-from  flight_delay.api import aviationstack_client
-from flight_delay.utils import db
+from datetime import date
+from flight_delay.api import aviationstack_client
 from flight_delay.visualization.airport_map import show_flight_path
-from datetime import date, datetime
 
-
-def render_header():
-    st.title("Flight Delay Prediction")
-    st.caption("@tichytadeas")
-
-
-def render_inputs(top, bottom):
-    # TODO add more airports
-    airports = ["Prague International Airport (PRG)"]
-    airport_codes = {"Prague International Airport (PRG)" : "PRG"}
-    selected_airport = top.selectbox("Deparature Airport", airports)
-    flight_number = bottom.text_input("Flight Number", placeholder="e.g., AA1234")
-    return airport_codes.get(selected_airport), flight_number.upper()
-
-def color_status_text(val):
-    colors = {
-        "ACTIVE": "color: green;",
-        "SCHEDULED": "color: blue;",
-        "LANDED": "color: green;",
-        "DELAYED": "color: orange;",
-        "CANCELLED": "color: red;",
-        "DIVERTED": "color: darkorange;",
-        "INCIDENT": "color: darkorange;",
-    }
-    return colors.get(val, "color: gray;")
-
-def render_timetable(df, pos : st._DeltaGenerator, limit=10):
-    df = df.copy()
-
-    df['departure.scheduledTime'] = pd.to_datetime(
-        df['departure.scheduledTime'], utc=True, errors="coerce"
-    )
-
-    now = pd.Timestamp.now(tz="UTC")
-    df = df[df['departure.scheduledTime'] >= now]
-    df = df[df['flight.iataNumber'].notna() & (df['flight.iataNumber'].str.strip() != "")]
-
-    df['Scheduled Time'] = df['departure.scheduledTime'].dt.strftime('%H:%M')
-    df['Status'] = df['status'].str.upper()
-    df['Airline'] = df['airline.name']
-    df['Flight Number'] = df['flight.iataNumber']
-    df['Destination Airport'] = df['arrival.iataCode']
-
-    df_render = df[['Status', 'Scheduled Time', 'Flight Number', 'Airline', 'Destination Airport']]
-
-
-    df_styled = df_render.style.map(
-        color_status_text, subset=["Status"], 
-    ).set_table_styles([
-        {"selector": "thead", "props": [("background-color", "#f0f0f0"), ("color", "#000") ]},
-        {"selector": "tbody", "props": [("background-color", "#ffffff"), ("color", "#000") ]},
-        {"selector": "th", "props": [("color", "#000") ]},
-        {"selector": "td", "props": [("color", "#000") ]}
-    ]).hide(axis="index")
-
-    pos.markdown("Departures Board")
-    pos.dataframe(
-        df_styled,
-        width="stretch",
-        hide_index=True,
-    )
-
-def fetch_flight_data(flight_number: str):
-    """
-    Fetch flight info for a given flight number and date
-    Returns a normalized DataFrame with flight info.
-    """
-    query = {
-        'dep_iata' : 'PRG', 
-        'flight_iata': flight_number
-    }
-    response = aviationstack_client.fetch_query("flights", query)
-    if not response or "data" not in response:
-        # debug
-        print("NOT RESPONDING")
-        return None
-    df = pd.json_normalize(response["data"])
-    return df
-
+from interface import render_header, render_inputs, render_timetable
+from services import predict_delay
 
 def main(): 
+    st.set_page_config(page_title="Flight Delay Prediction", page_icon="✈️")    
+    render_header()
+
     if "airport_timetable" not in st.session_state:
         st.session_state.airport_timetable = {}
 
-    st.set_page_config(page_title="Flight Delay Prediction", page_icon="✈️")    
-    render_header()
+    if "data_cache" not in st.session_state:
+        st.session_state.data_cache = {}
+
+    if "last_flight" not in st.session_state:
+        st.session_state.last_flight = None
+
+    if "prediction_cache" not in st.session_state:
+        st.session_state.prediction_cache = {}
     
     top = st.container()
     bottom = st.container()
 
     airport_code, flight_number = render_inputs(top, bottom)
-    airport_timetables = { "PRG" : 0 }
-    
-    # TODO Add a flight map for the selected airport
+
+    if flight_number != st.session_state.last_flight:
+        st.session_state.pop("prediction", None)
+        st.session_state.pop("prediction_error", None)
+        st.session_state.pop("predicted_flight", None)
+        st.session_state.last_flight = flight_number
 
     if top.button(f"Current timetable for **{airport_code}**"):
-        with top:
-            st.session_state.airport_timetable[airport_code] = aviationstack_client.fetch_query(
-                "timetable", {"iataCode": airport_code, "type": "departure"}
-            )
+        if airport_code in st.session_state.data_cache:
+            st.session_state.airport_timetable[airport_code] = st.session_state.data_cache[airport_code]
+            # debug 
+            st.toast(f"Loaded from cache!", icon="💾")
+        else:
+            with top:
+                data = aviationstack_client.fetch_query(
+                    "timetable", {"iataCode": airport_code, "type": "departure"}
+                )
+                st.session_state.data_cache[airport_code] = data
+                st.session_state.airport_timetable[airport_code] = data
 
     if airport_code in st.session_state.airport_timetable:
         timetable_data = st.session_state.airport_timetable[airport_code]
         if timetable_data and "data" in timetable_data:
-            df = pd.json_normalize(timetable_data["data"])
-            render_timetable(df, top)
+            timetable_df = pd.json_normalize(timetable_data["data"])
+            render_timetable(timetable_df, top)
 
     if flight_number:
-        date_input = bottom.date_input("Flight Date", value=date.today(), min_value=date.today(), max_value=date.today())
-        date_str = date_input.strftime("%Y-%m-%d")
-        if bottom.button(f"Predict delay for **{flight_number}**"):
+        with bottom.form("predict_form", clear_on_submit=False):
+            date_input = st.date_input(
+                "Flight Date",
+                value=date.today(),
+                min_value=date.today(),
+                max_value=date.today()
+            )
+
+            submitted = st.form_submit_button(
+                f"Predict delay for **{flight_number}**"
+            )
+
+        if submitted:
+            # debug print
             print(flight_number)
+            date_str = date_input.strftime("%Y-%m-%d")
             print(date_str)
             with st.spinner("Fetching flight data..."):
-                flight_df = fetch_flight_data(flight_number)
-                render_timetable(flight_df, top)
-                with st.spinner("Calculating delay..."):
-                    # TODO Predict delay
-                    pass
-                st.success("Prediction completed!")
+                timetable_data = None
+                # try to get data from cache
+                if airport_code in st.session_state.data_cache:
+                    timetable_data = st.session_state.data_cache[airport_code]
+                
+                # if missing, fetch it and save to CACHE ONLY
+                else:
+                    timetable_data = aviationstack_client.fetch_query(
+                        "timetable", {"iataCode": airport_code, "type": "departure"}
+                    )
+                    st.session_state.data_cache[airport_code] = timetable_data
 
+                if timetable_data and "data" in timetable_data:
+                    timetable_df_silent = pd.json_normalize(timetable_data["data"])
+                    flight_subset = timetable_df_silent[timetable_df_silent['flight.iataNumber'].str.strip().str.upper() == flight_number.strip().upper()]
+                else:
+                    flight_subset = pd.DataFrame()
+                # debug
+                print(flight_subset[['departure.scheduledTime', 'departure.terminal', 'flight.iataNumber', 'airline.icaoCode', 'arrival.iataCode']])
+
+            with st.spinner("Calculating delay..."):
+                if flight_subset.empty:
+                    # debug print
+                    print(f"Flight {flight_number} not found!")
+                    st.session_state.prediction_error = (
+                        f"Flight {flight_number} not found!"
+                    )
+                else:
+                    cache_key = (airport_code, flight_number, date_str)
+
+                    if cache_key in st.session_state.prediction_cache:
+                        delay = st.session_state.prediction_cache[cache_key]
+                    else:
+                        delay = predict_delay(flight_subset, timetable_df_silent)
+                        st.session_state.prediction_cache[cache_key] = delay
+
+                    st.session_state.prediction = delay
+                    st.session_state.predicted_flight = flight_number
+
+    if 'prediction_error' in st.session_state and st.session_state.predicted_flight == flight_number:
+        st.error(st.session_state.prediction_error)
+    if 'prediction' in st.session_state and st.session_state.predicted_flight == flight_number:
+        st.success(f"The expected delay for **{flight_number}** is {st.session_state.prediction} minutes")
 
 if __name__ == "__main__":
     main()
