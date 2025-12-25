@@ -5,33 +5,17 @@ import json
 from pathlib import Path
 from flight_delay.api import aviationstack_client
 import streamlit as st
+from flight_delay.utils.dicts import SCHENGEN_AIRPORTS
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
 
-def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, one_hot = False):
+
+def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, one_hot = False) -> pd.DataFrame:
 
     df_departures = df_departures.copy()
     
-    schengen_airports = [
-        'fra','waw','zrh','cdg','bgy','arn','brq','muc','ams','vie','bcn','edi',
-        'ltn','rmf','hel','mxp','tfs','bru','ksc','agp','gla','lgw','dus','rix',
-        'mad','dub','tuf','poz','lis','tia','gdn','sll','otp','alc','sof','bwe',
-        'klu','pmi','nap','cph','beg','ein','nte','snu','fnc','blq','ath','stn',
-        'bud','vlc','flr','kut','ayt','ncl','tsf','cta','rho','ema','rns','gro',
-        'bri','ory','osr','lba','tbs','opo','spu','psa','crl','cia','ktt','psr',
-        'lcy','lca','bio','lux','cag','lys','cgn','lpa','tat','gva','bsl','rkt',
-        'nqz','kef','klx','lpl','prg','fue','vod','skg','bva','bhx','svq','pdl',
-        'lbg','igs','krk','haj','got','bvc','mrs','lin','gyd','rmo','bah','var',
-        'bfs','nce','ber','smv','ktw','vce','trs','her','inn','dla','mla','pqc',
-        'pmo','str','ped','rmi','fao','cfu','rtm','bts','zad','sbz','hog','ala',
-        'qzp','kbv','cvf','szg','kun','bqh','qrs','trn','adb','sir','asr','erf',
-        'nue','zag','pfo','ndr','wro','qiu','grz','aey','lej','plq','ham','tsr',
-        'peg','vrn','sma','qky','bll','sco','mct','pow','xry','tln','fae','bjz',
-        'rze','mmx','ghv'
-    ]
-    
-    random_seed = 333
+    schengen_airports = SCHENGEN_AIRPORTS
 
     flight_row = flight_row[[
         'departure.terminal',
@@ -124,29 +108,29 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     for col in flight_row.columns:
         print(f'{col} : {flight_row[col].iloc[0]}')
 
-    # TODO change later
+    # TODO maybe change later
     flight_row.drop(columns='delay', inplace=True)
 
     if flight_row.isnull().sum().sum() == 0:
         return flight_row
     else:
-        return None
+        return pd.DataFrame()
 
-@st.cache_resource
+
+@st.cache_data(ttl=1800)
 def get_weather():
     LAT = 50.1008
     LON = 14.2600
 
-    url = "https://api.open-meteo.com/v1/forecast"
+    url = 'https://api.open-meteo.com/v1/forecast'
     params = {
-        "latitude": LAT,
-        "longitude": LON,
-        "hourly": "temperature_2m,precipitation,wind_speed_10m",
-        "wind_speed_unit": "kmh",
-        "timezone": "Europe/Prague",
-        "forecast_days": 1
+        'latitude': LAT,
+        'longitude': LON,
+        'hourly': 'temperature_2m,precipitation,wind_speed_10m',
+        'wind_speed_unit': 'kmh',
+        'timezone': 'Europe/Prague',
+        'forecast_days': 1
     }
-    df_weather = None
     try:
         response = requests.get(url, params=params, timeout=5)
         response.raise_for_status()
@@ -162,11 +146,20 @@ def get_weather():
         })
 
     except Exception as e:
-        print(f"Weather API Failed: {e}")
+        st.warning(f'Weather API Failed: {e}. Using fallback values for weather.')
+        return pd.DataFrame()
     return df_weather
 
 
 def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
+    """
+    Docstring for add_weather
+    
+    :param flight_row: Description
+    :type flight_row: pd.DataFrame
+    :return: Description
+    :rtype: DataFrame
+    """
     LAT = 50.1008
     LON = 14.2600
     
@@ -182,7 +175,6 @@ def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
         flight_row['precip_mm'] = match.iloc[0]['precip_mm']
         flight_row['wind_kph'] = match.iloc[0]['wind_kph']
     else:
-        print(f"Error. Used weather fallback!")
         flight_row['temp_c'] = np.nan
         flight_row['precip_mm'] = np.nan
         flight_row['wind_kph'] = np.nan
@@ -190,32 +182,53 @@ def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
     return flight_row
 
 
-
-def add_traffic(df_departures, flight_row):
-    # Departures
-    df_departures['departure.scheduledTime'] = pd.to_datetime(df_departures['departure.scheduledTime'])
-
-    df_departures['hour_bucket'] = df_departures['departure.scheduledTime'].dt.round('h')
-    
-    my_time = flight_row['scheduled_time'].dt.round('h').iloc[0]
-
-    flight_row['departure_traffic'] = (df_departures['hour_bucket'] == my_time).sum() - 1
-
+@st.cache_data(ttl=1800)
+def get_arrival_df() -> pd.DataFrame:
+    """
+    Docstring for get_arrival_df
+    """
     try:
         df_arrivals = aviationstack_client.fetch_query(
-            "timetable", {"iataCode": 'PRG', "type": "arrival"}
+            'timetable', {'iataCode': 'PRG', 'type': 'arrival'}
         )
 
-        df_arrivals = pd.json_normalize(df_arrivals["data"])
+        df_arrivals = pd.json_normalize(df_arrivals['data'])
 
         df_arrivals['arrival.scheduledTime'] = pd.to_datetime(df_arrivals['arrival.scheduledTime'])
 
         df_arrivals['hour_bucket'] = df_arrivals['arrival.scheduledTime'].dt.round('h')
 
-        flight_row['arrival_traffic'] = (df_departures['hour_bucket'] == my_time).sum()
-        
+        return df_arrivals
     except Exception as e:
-        print(f"Warning: API failed ({e}). Using fallback traffic value.")
+        print(f'API failed ({e}). Using fallback value for ARRIVAL TRAFFIC.')
+        return pd.DataFrame()
+
+
+def add_traffic(df_departures: pd.DataFrame, flight_row: pd.DataFrame) -> pd.DataFrame:
+    """
+    Docstring for add_traffic
+    
+    :param df_departures: Description
+    :param flight_row: Description
+    """
+    # Departures
+    flight_time = flight_row['scheduled_time'].dt.round('h').iloc[0]
+
+
+    df_departures['departure.scheduledTime'] = pd.to_datetime(df_departures['departure.scheduledTime'])
+
+    df_departures['hour_bucket'] = df_departures['departure.scheduledTime'].dt.round('h')
+
+    # Departure traffic is all the departuring flights in the same hour bucket - 1 for the flight that we are predicting
+    flight_row['departure_traffic'] = (df_departures['hour_bucket'] == flight_time).sum() - 1
+
+    df_arrivals = get_arrival_df()
+
+    if not df_arrivals.empty:
+        # Arrival traffic is all the arriving flights in the same hour bucket
+        flight_row['arrival_traffic'] = (df_arrivals['hour_bucket'] == flight_time).sum()
+    else:
+        # np.nan so the column gets filled later with the fallback value
         flight_row['arrival_traffic'] = np.nan
 
     return flight_row

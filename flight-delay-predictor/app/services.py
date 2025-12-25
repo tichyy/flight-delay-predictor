@@ -7,7 +7,7 @@ from flight_delay.api import aviationstack_client
 import requests
 
 CURRENT_DIR = Path(__file__).resolve().parent
-PREDICTOR_PATH = CURRENT_DIR.parent / 'models' / 'flight_delay_xgb.joblib'
+
 
 @st.cache_data(ttl=1800)
 def get_timetable_df(airport_code: str, timetable_type: str) -> pd.DataFrame:
@@ -32,13 +32,19 @@ def get_timetable_df(airport_code: str, timetable_type: str) -> pd.DataFrame:
 
     return pd.json_normalize(raw_data['data'])
 
+
 @st.cache_resource
 def load_predictor():
-    return joblib.load(PREDICTOR_PATH)
+    predictor_path = CURRENT_DIR.parent / 'models' / 'flight_delay_xgb.joblib'
+    return joblib.load(predictor_path)
 
 
 def predict_delay(flight_row : pd.DataFrame, df : pd.DataFrame):
     Xinput = prepare_features(df_departures=df, flight_row=flight_row)
+    if Xinput.empty:
+        st.warning('Prediction failed. Error in preprocessing.')
+        return
+    
     predictor = load_predictor()
 
     if not hasattr(predictor, 'feature_names_in_'):
@@ -50,8 +56,8 @@ def predict_delay(flight_row : pd.DataFrame, df : pd.DataFrame):
     try:
         Xinput = Xinput[predictor_features]
     except KeyError as e:
-        print(f'Error: generated row is missing columns expected by model: {e}')
-        return 0
+        st.warning(f'Error: generated row is missing columns expected by model: {e}')
+        return
 
     prediction = predictor.predict(Xinput)[0]
     
@@ -62,11 +68,13 @@ def predict_delay(flight_row : pd.DataFrame, df : pd.DataFrame):
 def predict_delay_cached(flight_row: pd.DataFrame, df: pd.DataFrame, flight_num: str, date: str) -> int: 
     return predict_delay(flight_row=flight_row, df=df)
 
+
 def valid_flight_number(flight_num: str) -> bool:
     if len(flight_num) < 2 or flight_num.isspace():
         print(len(flight_num))
         return False
     return True
+
 
 def filter_flight(df: pd.DataFrame, flight_number: str) -> pd.DataFrame:
     if df.empty:
@@ -76,6 +84,7 @@ def filter_flight(df: pd.DataFrame, flight_number: str) -> pd.DataFrame:
     df['flight.iataNumber'] = df['flight.iataNumber'].fillna("").str.strip().str.upper()
 
     return df[df['flight.iataNumber'] == flight_number]
+
 
 def prediction_logic(flight_number_input, flight_date_input, timetable_df):
     if not valid_flight_number(flight_number_input):
@@ -102,3 +111,5 @@ def prediction_logic(flight_number_input, flight_date_input, timetable_df):
     st.success(
         f"The expected delay for **{flight_number}** is {delay} minutes"
     )
+
+    return flight_df['arrival.iataCode'].iloc[0]

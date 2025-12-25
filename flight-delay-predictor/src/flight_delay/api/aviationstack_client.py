@@ -13,13 +13,10 @@ def post_query(endpoint, params=None):
     if params is None:
         params = {}
 
-    # uncomment on 1.1.2026
-    # if 'type' in params and params['type'] == 'arrival':
-    #     api_key = os.getenv("AVIATIONSTACK_2_API_KEY")
-    # else:
-    #     api_key = os.getenv("AVIATIONSTACK_API_KEY")
-
-    api_key = os.getenv("AVIATIONSTACK_API_KEY")
+    if 'type' in params and params['type'] == 'arrival':
+        api_key = os.getenv("AVIATIONSTACK_2_API_KEY")
+    else:
+        api_key = os.getenv("AVIATIONSTACK_API_KEY")
 
     if not api_key:
         raise ValueError("AVIATIONSTACK_API_KEY variable is missing!")
