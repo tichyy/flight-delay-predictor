@@ -5,32 +5,36 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
-
-print(f"Key loaded: {'Yes' if os.getenv('AVIATIONSTACK_API_KEY') else 'No'}")
+load_dotenv(override=True)
 
 AVIATIONSTACK_BASE_URL = "https://api.aviationstack.com/v1/"
 
-def post_query(endpoint, params={}):
-    params['access_key'] = os.getenv("AVIATIONSTACK_API_KEY")
+def post_query(endpoint, params=None):
+    if params is None:
+        params = {}
 
+    # uncomment on 1.1.2026
+    # if 'type' in params and params['type'] == 'arrival':
+    #     api_key = os.getenv("AVIATIONSTACK_2_API_KEY")
+    # else:
+    #     api_key = os.getenv("AVIATIONSTACK_API_KEY")
+
+    api_key = os.getenv("AVIATIONSTACK_API_KEY")
+
+    if not api_key:
+        raise ValueError("AVIATIONSTACK_API_KEY variable is missing!")
+
+    params['access_key'] = api_key
     url = f"{AVIATIONSTACK_BASE_URL}{endpoint}"
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        response_json = response.json()
-        return response_json
-    except requests.exceptions.HTTPError as e:
-        print(e)
-        st.error(f"Too many requests. Try again in 10 minutes.")
-        return None
-    except requests.exceptions.RequestException as e:
-        st.error(f"API request failed: {e}")
-        return None
+
+    response = requests.get(url, params=params, timeout=10)
+    response.raise_for_status()
+    data = response.json()
+    return data
     
-@st.cache_data(ttl=1800) # Cache for 30 minutes
-def fetch_query(endpoint, params={}):
+@st.cache_data(ttl=300) # Cache for 5 minutes
+def fetch_query(endpoint, params: dict):
     res = post_query(endpoint, params)
     if res is None:
-        raise Exception("API Failed - Prevent Caching")
+        raise ValueError("Empty API response - prevented caching")
     return res
