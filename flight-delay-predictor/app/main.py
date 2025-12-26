@@ -6,11 +6,11 @@ App displays departure board, flight visualizations and predicts delays.
 import streamlit as st
 import interface
 
-# TODO FIX DATES IN PREDICTION FORM! (AND EVERYWHERE) AND WHEN I RUN THE APP AT 22:00 I WILL SEE TOMORROW FLIGHTS IN THE TIMETABLE!
 
 def init_session():
     st.session_state.setdefault('timetable_df', None)
     st.session_state.setdefault('airport_code', None)
+    st.session_state.setdefault('predicted_flights', [])
 
 def main():
     """

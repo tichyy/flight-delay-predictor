@@ -29,7 +29,7 @@ def get_timetable_df(airport_code: str, timetable_type: str) -> pd.DataFrame:
 
     if not raw_data or 'data' not in raw_data:
         return pd.DataFrame()
-
+    
     return pd.json_normalize(raw_data['data'])
 
 
@@ -70,6 +70,7 @@ def predict_delay_cached(flight_row: pd.DataFrame, df: pd.DataFrame, flight_num:
 
 
 def valid_flight_number(flight_num: str) -> bool:
+    flight_num = flight_num.strip()
     if len(flight_num) < 2 or flight_num.isspace():
         print(len(flight_num))
         return False
@@ -87,10 +88,6 @@ def filter_flight(df: pd.DataFrame, flight_number: str) -> pd.DataFrame:
 
 
 def prediction_logic(flight_number_input, flight_date_input, timetable_df):
-    if not valid_flight_number(flight_number_input):
-        st.error('Enter a valid flight number!')
-        return
-    
     flight_number = flight_number_input.strip().upper()
     date_str = flight_date_input.strftime("%Y-%m-%d")
 
@@ -109,7 +106,7 @@ def prediction_logic(flight_number_input, flight_date_input, timetable_df):
         )
 
     st.success(
-        f"The expected delay for **{flight_number}** is {delay} minutes"
-    )
+        f'The expected delay for **{flight_number}** is {delay} minutes'
+    )   
 
-    return flight_df['arrival.iataCode'].iloc[0]
+    return flight_df['arrival.iataCode'].iloc[0], delay, flight_number

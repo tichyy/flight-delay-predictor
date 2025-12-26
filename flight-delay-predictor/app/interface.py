@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-from services import prediction_logic, get_timetable_df
+from services import prediction_logic, get_timetable_df, valid_flight_number
 from datetime import date
 from flight_delay.utils.dicts import AIRPORT_COORDS
 import pydeck as pdk
-
 
 st.markdown(
     '''
@@ -61,12 +60,13 @@ def render_timetable(df : pd.DataFrame):
     
     df = df.copy()
 
-    df['departure.scheduledTime'] = pd.to_datetime(
-        df['departure.scheduledTime'], utc=True, errors='coerce'
-    )
+    df['departure.scheduledTime'] = pd.to_datetime(df['departure.scheduledTime'], utc=True, errors='coerce')
 
     now = pd.Timestamp.now(tz='UTC')
     df = df[df['departure.scheduledTime'] >= now]
+
+    # only todays flights
+    df = df[df['departure.scheduledTime'].dt.date == date.today()]
     df = df[df['flight.iataNumber'].notna() & (df['flight.iataNumber'].str.strip() != '')]
 
     df['Scheduled Time'] = df['departure.scheduledTime'].dt.strftime('%H:%M')
@@ -74,6 +74,7 @@ def render_timetable(df : pd.DataFrame):
     df['Airline'] = df['airline.name']
     df['Flight Number'] = df['flight.iataNumber']
     df['Destination Airport'] = df['arrival.iataCode']
+
 
     df_render = df[['Status', 'Scheduled Time', 'Flight Number', 'Airline', 'Destination Airport']]
 
@@ -94,18 +95,50 @@ def render_timetable(df : pd.DataFrame):
         height=300
     )
 
+def get_arc_color(delay):
+    if delay < 20:
+        return [0, 255, 128, 100]
+    elif delay < 45:
+        return [255, 165, 0, 100]
+    else:
+        return [255, 0, 80, 100]
 
-def render_flight_visualization(destination_iata):
+@st.fragment
+def render_flight_visualization(destination_iata, predicted_delay, flight_num, data):
     prg_coords = AIRPORT_COORDS['PRG']
+
+    if destination_iata not in AIRPORT_COORDS:
+        st.warning('Cannot visualize the flight. Destination coordinates unknown.')
+        return 
+    
     destination_coords = AIRPORT_COORDS[destination_iata]
 
-    data = [ {'destination': destination_iata, 'destination_coords': destination_coords, 'source_coords': prg_coords}  ]
+    data = [d for d in data if d['destination'] != destination_iata]
 
+    data.append(
+        {
+        'destination': destination_iata, 'destination_coords': destination_coords, 
+        'source_coords': prg_coords, 'predicted_delay': predicted_delay, 
+        'flight_number': flight_num
+        }
+    )
+    
     df = pd.DataFrame(data)
 
-    color = (255, 0, 0, 150)
 
-    df['color'] = [color] * len(df)
+    with st.expander("Map Controls", expanded=False):
+        all_flights = df['flight_number'].unique().tolist()
+        
+        shown_flights = st.pills("Select flights to show:", options=all_flights, default=all_flights, selection_mode='multi')
+        
+        if not shown_flights:
+            st.warning(f"⚠ At least one flight must be visible. Showing flight: {flight_num}.")
+            
+            shown_flights = [flight_num]
+
+        df = df[df['flight_number'].isin(shown_flights)]
+
+    df['color'] = df['predicted_delay'].apply(get_arc_color)
 
     arc_layer = pdk.Layer(
         'ArcLayer',
@@ -114,41 +147,34 @@ def render_flight_visualization(destination_iata):
         get_target_position='destination_coords',
         get_source_color='color',
         get_target_color='color',
-        get_width=3,
+        get_width=4,
         get_height=0.5,
         pickable=True,
         auto_highlight=True
     )
 
-    circle_layer = pdk.Layer(
-        'CircleLayer',
-        data=df,
-        get_position='destination_coords',
-        get_radius=10000,
-        get_fill_color='color',
-        pickable=True,
-        opacity=0.8,
-        stroked=True,
-        filled=True,
-        radius_scale=0.5,
-        radius_min_pixels=5,
-        radius_max_pixels=20,
-    )
 
     view_state = pdk.ViewState(
         latitude=45.0,
         longitude=20.0,
-        zoom=2,
-        pitch=45,
+        zoom=3.5,
+        pitch=30,
         bearing=0
     )
 
+    tooltip = {
+        "html": "<b> Flight number: </b> {flight_number} <br/> <b>Destination:</b> {destination} <br/> <b>Predicted Delay:</b> {predicted_delay} mins",
+        "style": {"backgroundColor": "steelblue", "color": "white"}
+    }
+
     st.pydeck_chart(pdk.Deck(
-        map_style='https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+        map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         initial_view_state=view_state,
-        layers=[arc_layer, circle_layer],
-        # tooltip=tooltip
+        layers=[arc_layer],
+        tooltip=tooltip
     ))
+
+    return data
 
 
 @st.fragment
@@ -174,9 +200,13 @@ def render_prediction(timetable_df):
     if not submitted:
         return
 
-    destination_iata =prediction_logic(flight_number_input, flight_date_input, timetable_df)
+    if not valid_flight_number(flight_number_input):
+        st.error('Enter a valid flight number!')
+        return
 
-    render_flight_visualization(destination_iata)
+    destination_iata, predicted_delay, flight_num = prediction_logic(flight_number_input, flight_date_input, timetable_df)
+
+    st.session_state['predicted_flights'] = render_flight_visualization(destination_iata, predicted_delay, flight_num, st.session_state['predicted_flights'])
 
 
 def render_refresh_button(airport_code, timetable_df):
