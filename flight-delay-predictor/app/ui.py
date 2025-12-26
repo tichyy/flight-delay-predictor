@@ -1,6 +1,11 @@
+"""
+User interface components and rendering logic for the flight delay prediction application.
+Layout, Buttons, Input handling, Visualization
+"""
+
 import streamlit as st
 import pandas as pd
-from services import prediction_logic, get_timetable_df, valid_flight_number
+from services import get_timetable_df
 from datetime import date
 from flight_delay.utils.dicts import AIRPORT_COORDS
 import pydeck as pdk
@@ -17,17 +22,35 @@ st.markdown(
 )
 
 def render_header():
+    """
+    Renders the header and caption.
+    """
     st.title('Flight Delay Prediction')
     st.caption('@tichytadeas')
 
-def render_airport_select():
+def render_airport_select() -> str:
+    """
+    Renders a selectbox for choosing the departure airport. 
+    There is only 'PRG' airport. I made this function for future expansion.
+
+    :return: IATA code of the selected airport
+    :rtype: str
+    """
     # TODO Add more airports.
     airports = ['Prague International Airport (PRG)']
     airport_codes = {'Prague International Airport (PRG)' : 'PRG'}
     selected_airport = st.selectbox('Departure Airport', airports)
     return airport_codes.get(selected_airport)
 
-def color_status_text(val):
+def color_status_text(val: str) -> str:
+    """
+    Function chooses a color for each flight status.
+    
+    :param val: The status of the flight (df['status'])
+    :type val: str
+    :return: Color for the status cell in the timetable
+    :rtype: str
+    """
     colors = {
         'ACTIVE': 'color: green;',
         'SCHEDULED': 'color: blue;',
@@ -41,10 +64,13 @@ def color_status_text(val):
 
 
 def render_timetable(df : pd.DataFrame):
-    if df.empty:
-        st.warning('Timetable rendering failed. Timetable is empty.')
-        return
-
+    """
+    Processes the timetable dataframe and renders departure table.
+    Displays only todays flights that has not left yet.
+    
+    :param df: Raw timetable dataframe
+    :type df: pd.DataFrame
+    """
     required_cols = [
         'departure.scheduledTime',
         'flight.iataNumber',
@@ -95,7 +121,15 @@ def render_timetable(df : pd.DataFrame):
         height=300
     )
 
-def get_arc_color(delay):
+def get_arc_color(delay: int) -> list[int]:
+    """
+    Chooses a color based on the delay.
+        
+    :param delay: Predicted delay in minutes
+    :type delay: int
+    :return: Color in RGBA format
+    :rtype: list[int]
+    """
     if delay < 20:
         return [0, 255, 128, 100]
     elif delay < 45:
@@ -104,28 +138,16 @@ def get_arc_color(delay):
         return [255, 0, 80, 100]
 
 @st.fragment
-def render_flight_visualization(destination_iata, predicted_delay, flight_num, data):
-    prg_coords = AIRPORT_COORDS['PRG']
-
-    if destination_iata not in AIRPORT_COORDS:
-        st.warning('Cannot visualize the flight. Destination coordinates unknown.')
-        return 
+def render_map(df: pd.DataFrame, flight_num: str):
+    """
+    Renders a PyDeck map with flight paths.
+    Also renders a st.pills in an st.expander to filter which flights to show on the map. 
     
-    destination_coords = AIRPORT_COORDS[destination_iata]
-
-    data = [d for d in data if d['destination'] != destination_iata]
-
-    data.append(
-        {
-        'destination': destination_iata, 'destination_coords': destination_coords, 
-        'source_coords': prg_coords, 'predicted_delay': predicted_delay, 
-        'flight_number': flight_num
-        }
-    )
-    
-    df = pd.DataFrame(data)
-
-
+    :param df: Dataframe with predicted flight details. (coordinates, delay)
+    :type df: pd.DataFrame
+    :param flight_num: Latest (current) predicted flight number.
+    :type flight_num: str
+    """
     with st.expander("Map Controls", expanded=False):
         all_flights = df['flight_number'].unique().tolist()
         
@@ -153,7 +175,6 @@ def render_flight_visualization(destination_iata, predicted_delay, flight_num, d
         auto_highlight=True
     )
 
-
     view_state = pdk.ViewState(
         latitude=45.0,
         longitude=20.0,
@@ -174,11 +195,14 @@ def render_flight_visualization(destination_iata, predicted_delay, flight_num, d
         tooltip=tooltip
     ))
 
-    return data
 
-
-@st.fragment
-def render_prediction(timetable_df):
+def render_prediction_form():
+    """
+    Renders the form for inputting flight number and date for the prediction.
+    
+    So far only todays flights are allowed because I am using free APIs. 
+    Added the date column for easier future expansion.
+    """
     with st.form('flight_predict_form'):
         c1, c2 = st.columns([2, 1])
 
@@ -196,20 +220,20 @@ def render_prediction(timetable_df):
             )
 
         submitted = st.form_submit_button('Predict delay')
-
-    if not submitted:
-        return
-
-    if not valid_flight_number(flight_number_input):
-        st.error('Enter a valid flight number!')
-        return
-
-    destination_iata, predicted_delay, flight_num = prediction_logic(flight_number_input, flight_date_input, timetable_df)
-
-    st.session_state['predicted_flights'] = render_flight_visualization(destination_iata, predicted_delay, flight_num, st.session_state['predicted_flights'])
+    return flight_number_input, flight_date_input, submitted
 
 
-def render_refresh_button(airport_code, timetable_df):
+def render_refresh_button(airport_code: str, timetable_df: pd.DataFrame):
+    """
+    Renders a button to refresh the flight timetable data.
+    
+    After clicking it clears the cache, fetches new data and updates the session state.
+
+    :param airport_code: IATA code of the selected airport.
+    :type airport_code: str
+    :param timetable_df: Current timetable (before refreshing).
+    :type timetable_df: pd.DataFrame
+    """
     if st.button(f'Refresh timetable for **{airport_code}**'):
         get_timetable_df.clear()
         new_timetable_df = get_timetable_df(airport_code=airport_code, timetable_type='departure')

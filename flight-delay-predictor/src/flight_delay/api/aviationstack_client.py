@@ -1,6 +1,8 @@
+"""
+API client interface for the AviationStack flight data service.
+Handles the HTTP communication with the AviationStack API.
+"""
 import os
-import json
-import time
 import requests
 import streamlit as st
 from dotenv import load_dotenv
@@ -9,7 +11,17 @@ load_dotenv(override=True)
 
 AVIATIONSTACK_BASE_URL = "https://api.aviationstack.com/v1/"
 
-def post_query(endpoint, params=None):
+def post_query(endpoint: str, params: dict = None) -> dict:
+    """
+    Executes a GET request to the AviationStack API.
+    
+    :param endpoint: API endpoint to query ('timetable', 'flights', ...).
+    :type endpoint: str
+    :param params: Optional query parameters ('date', 'type', ...).
+    :type params: dict
+    :return: JSON response from the API.
+    :rtype: dict
+    """
     if params is None:
         params = {}
 
@@ -28,9 +40,21 @@ def post_query(endpoint, params=None):
     response.raise_for_status()
     data = response.json()
     return data
-    
+
+
 @st.cache_data(ttl=300) # Cache for 5 minutes
-def fetch_query(endpoint, params: dict):
+def fetch_query(endpoint: str, params: dict = None) -> dict:
+    """
+    Wrapper for 'post_query'. Caches results for 5 minutes. 
+    Function prevents unwanted caching of invalid states by raising a ValueError.
+    
+    :param endpoint: API endpoint to query.
+    :type endpoint: str
+    :param params: Optional query parameters.
+    :type params: dict
+    :return: JSON response data.
+    :rtype: dict
+    """
     res = post_query(endpoint, params)
     if res is None:
         raise ValueError("Empty API response - prevented caching")

@@ -1,3 +1,7 @@
+"""
+This module contains the complete data preprocessing for the flight prediction ML model.
+It prepares wanted features including external weather and airport traffic data.
+"""
 import pandas as pd
 import requests
 import numpy as np
@@ -12,7 +16,19 @@ CURRENT_DIR = Path(__file__).resolve().parent
 
 
 def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, one_hot = False) -> pd.DataFrame:
-
+    """
+    Preprocesses a raw flight row into a dataframe with specific features for the ML model.
+    Feature engineering - Adds traffic information (departures/arrivals). Adds weather data.
+    Cyclical features for day of week and hour.
+    
+    :param df_departures: Full departure timetable. 
+    :type df_departures: pd.DataFrame
+    :param flight_row: Row with the flight we want to predict on.
+    :type flight_row: pd.DataFrame
+    :param one_hot: True for One Hot Encoding, False for Label Encoding.
+    :return: Row with processed features or empty dataframe if the preprocessing fails.
+    :rtype: DataFrame
+    """
     df_departures = df_departures.copy()
     
     schengen_airports = SCHENGEN_AIRPORTS
@@ -96,7 +112,7 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
             )
             flight_row[col] = flight_row[col].astype(cat_type).cat.codes
 
-    # debug prints
+    # DEBUGGING TABLE
     # summary = pd.DataFrame({
     #     'Dtype': flight_row.dtypes,
     #     'Unique': flight_row.nunique(),
@@ -105,10 +121,13 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     # })
 
     # print(summary)
-    for col in flight_row.columns:
-        print(f'{col} : {flight_row[col].iloc[0]}')
+
+    # DEBUGGING PRINT
+    # for col in flight_row.columns:
+    #     print(f'{col} : {flight_row[col].iloc[0]}')
 
     # TODO maybe change later
+    # Currently we are ignoring the 'delay' displayed by the airport.
     flight_row.drop(columns='delay', inplace=True)
 
     if flight_row.isnull().sum().sum() == 0:
@@ -118,7 +137,14 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
 
 
 @st.cache_data(ttl=1800)
-def get_weather():
+def get_weather() -> pd.DataFrame:
+    """
+    Fetches the weather forecast for PRG airport from the Open-Meteo API.
+    Results are cached for 30 minutes.
+    
+    :return: Hourly weather data for today.
+    :rtype: DataFrame
+    """
     LAT = 50.1008
     LON = 14.2600
 
@@ -153,11 +179,11 @@ def get_weather():
 
 def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
     """
-    Docstring for add_weather
+    Adds the weather features to the flight row. If no hour bucket matches, fills features with NaNs.
     
-    :param flight_row: Description
+    :param flight_row: Row with the flight data.
     :type flight_row: pd.DataFrame
-    :return: Description
+    :return: Row with added weather features.
     :rtype: DataFrame
     """
     LAT = 50.1008
@@ -185,7 +211,11 @@ def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
 @st.cache_data(ttl=1800)
 def get_arrival_df() -> pd.DataFrame:
     """
-    Docstring for get_arrival_df
+    Fetches the arrival timetable for PRG airport. Uses AviationStack API.
+    Caches data for 30 minutes.    
+
+    :return: Timetable with arrivals
+    :rtype: DataFrame
     """
     try:
         df_arrivals = aviationstack_client.fetch_query(
@@ -206,14 +236,18 @@ def get_arrival_df() -> pd.DataFrame:
 
 def add_traffic(df_departures: pd.DataFrame, flight_row: pd.DataFrame) -> pd.DataFrame:
     """
-    Docstring for add_traffic
-    
-    :param df_departures: Description
-    :param flight_row: Description
+    Calculates airport traffic features for the specific time window. 
+    Adds the traffic features to the flight row.  
+
+    :param df_departures: Timetable with departures.
+    :type df_departures: pd.DataFrame
+    :param flight_row: Row with the flight we are predicting on.
+    :type flight_row: pd.DataFrame
+    :return: Row with added traffic features.
+    :rtype: DataFrame
     """
     # Departures
     flight_time = flight_row['scheduled_time'].dt.round('h').iloc[0]
-
 
     df_departures['departure.scheduledTime'] = pd.to_datetime(df_departures['departure.scheduledTime'])
 
