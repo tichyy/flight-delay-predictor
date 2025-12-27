@@ -78,10 +78,10 @@ pip install -r requirements.txt
 ```
 
 3. Create a .env file in the flight-delay-predictor directory.
-You need to create a free account on https://aviationstack.com/ and paste the API key into the .env file.  
+You need to sign up for a free account at https://aviationstack.com/ and paste the API key into the .env file. Both keys must be filled.
 ```
 AVIATIONSTACK_API_KEY=''
-AVIATIONSTACK_API_2_KEY='' # You can paste the same key here or create a 2nd account (recommended).
+AVIATIONSTACK_API_2_KEY='' # Must be either the same key here or a 2nd account (recommended).
 ```
 
 4. Run the Streamlit application in the virtual environment:
