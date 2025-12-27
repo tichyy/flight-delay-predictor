@@ -1,15 +1,29 @@
+"""
+Tests for src/flight_delay/services.py
+"""
 import sys
 from types import SimpleNamespace
+import pytest
+import pandas as pd
 
-# We need to mock st.spinner as an object with __enter__ and __exit methods.
 class DummySpinner:
+    """
+    We need to mock st.spinner as an object with __enter__ and __exit methods.
+    """
     def __init__(self, msg=None):
+        """
+        __init__
+        """
         self.msg = msg
-
     def __enter__(self):
+        """
+        Mock __enter__ method
+        """
         return None
-
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Mock __exit__ method
+        """
         return False
 
 # We need to mock Streamlit because services.py depend on it.
@@ -22,14 +36,14 @@ sys.modules['streamlit'] = SimpleNamespace(
     spinner=lambda msg: DummySpinner(msg),
 )
 
-import pytest
-import pandas as pd
-from flight_delay import services
-import streamlit as st
 
+from flight_delay import services
 
 @pytest.fixture
 def mock_timetable_df():
+    """
+    Mock timetable data.
+    """
     return pd.DataFrame({
         'flight.iataNumber': ["LH123", "LH124", "AF456", "BA789"],
         'arrival.iataCode': ["FRA", "AMS", "CDG", "LHR"]
@@ -38,7 +52,9 @@ def mock_timetable_df():
 
 @pytest.fixture
 def mock_predict_delay(monkeypatch):
-    # Always return 42 as the predicted delay
+    """
+    Mock predict_delay function to return a constant. (42)
+    """
     monkeypatch.setattr("flight_delay.services.predict_delay", lambda flight_row, df: 42)
     yield
 
@@ -49,9 +65,14 @@ def mock_predict_delay(monkeypatch):
     ("A", False),
     ("AF456", True),
     ("BA789", True),
-    ("XYZ", True),  # Format correct but not in timetable
+    ("XYZ", True),
+    ("lh123", True),
+    ("LH 123", False),
 ])
 def test_valid_flight_number(flight_num, expected):
+    """
+    Test return values for valid and invalid inputs.
+    """
     assert services.valid_flight_number(flight_num) == expected
 
 
@@ -62,8 +83,12 @@ def test_valid_flight_number(flight_num, expected):
     ("BA789", 1),
     ("UNKNOWN", 0),
     ("", 0),
+    (None, 0),
 ])
 def test_filter_flight(flight_number, expected_len, mock_timetable_df):
+    """
+    Test if the filter_flight function returns correct number of rows.
+    """
     filtered = services.filter_flight(mock_timetable_df, flight_number)
     assert len(filtered) == expected_len
 
@@ -73,13 +98,34 @@ def test_filter_flight(flight_number, expected_len, mock_timetable_df):
     ("AF456", "CDG", 42),
     ("BA789", "LHR", 42),
 ])
-def test_run_prediction_multiple(mock_predict_delay, mock_timetable_df, flight_number_input, expected_dest, expected_delay):
+def test_run_prediction(mock_predict_delay, mock_timetable_df, flight_number_input, expected_dest, expected_delay):
+    """
+    Test the run_prediction function.
+    """
     result = services.run_prediction(flight_number_input, pd.Timestamp("2025-12-26"), mock_timetable_df)
     assert result is not None
     dest, delay, flight_number = result
     assert dest == expected_dest
     assert delay == expected_delay
     assert flight_number == flight_number_input
+
+
+@pytest.mark.parametrize("flight_number_input", [
+    "",
+    " ",
+    "INVALID",
+    "LH999", # not in the mock timetable
+])
+def test_run_prediction_invalid_inputs(mock_predict_delay, mock_timetable_df, flight_number_input):
+    """
+    Test invalid inputs for run_prediction.
+    """
+    result = services.run_prediction(
+        flight_number_input,
+        pd.Timestamp("2025-12-26"),
+        mock_timetable_df
+    )
+    assert result is None
 
 
 @pytest.mark.parametrize("destination_iata,prev_flights,new_delay,new_flight_number,expected_len,expected_delay,expected_number", [
@@ -92,6 +138,9 @@ def test_run_prediction_multiple(mock_predict_delay, mock_timetable_df, flight_n
 ])
 def test_add_flight_for_visualization(destination_iata, prev_flights, new_delay, new_flight_number,
                                       expected_len, expected_delay, expected_number):
+    """
+    Check if the data is added or replaced correctly in add_flight_for_visualization.
+    """
     result = services.add_flight_for_visualization(destination_iata, new_delay, new_flight_number, prev_flights)
     assert len(result) == expected_len
     assert result[-1]['predicted_delay'] == expected_delay

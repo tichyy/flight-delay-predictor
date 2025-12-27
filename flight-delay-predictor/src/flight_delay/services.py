@@ -115,7 +115,7 @@ def valid_flight_number(flight_num: str) -> bool:
     :rtype: bool
     """
     flight_num = flight_num.strip()
-    if len(flight_num) < 2 or flight_num.isspace():
+    if len(flight_num) < 2 or flight_num.isspace() or ' ' in flight_num or not flight_num.isalnum:
         print(len(flight_num))
         return False
     return True
