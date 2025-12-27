@@ -26,6 +26,7 @@ def render_header():
     """
     st.title('Flight Delay Prediction')
     st.caption('@tichytadeas')
+    st.caption('BETA: Prediction works only for flights departuring TODAY from PRG Airport')
 
 def render_airport_select() -> str:
     """
@@ -137,7 +138,7 @@ def get_arc_color(delay: int) -> list[int]:
         return [255, 165, 0, 100]
     return [255, 0, 80, 100]
 
-
+@st.fragment()
 def render_map(df: pd.DataFrame, flight_num: str):
     """
     Renders a PyDeck map with flight paths.
