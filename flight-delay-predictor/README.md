@@ -68,7 +68,9 @@ cd flight-delay-predictor
 2. Install dependencies into a virtual environment:
 ```bash
 uv sync  
-# or
+
+# or all this:
+
 python3 -m venv .venv 
 source .venv/bin/activate     # Linux/MacOS
 # .venv\Scripts\Activate.ps1  # Windows PowerShell
