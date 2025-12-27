@@ -52,6 +52,11 @@ flight-delay-predictor/
 - Python 3.10+
 - UV package manager (recommended) or pip
 
+Recommended step:
+```bash
+pip install uv
+```
+
 ### Setup
 
 1. Clone the repository:
@@ -59,36 +64,30 @@ flight-delay-predictor/
 git clone <repository-url>
 cd flight-delay-predictor
 ```
-5. Create a .env file in the flight-delay-predictor directory.
+
+2. Install dependencies into a virtual environment:
+```bash
+uv sync  
+# or
+python3 -m venv .venv 
+source .venv/bin/activate     # Linux/MacOS
+# .venv\Scripts\Activate.ps1  # Windows PowerShell
+pip install -r requirements.txt
+```
+
+3. Create a .env file in the flight-delay-predictor directory.
 You need to create a free account on https://aviationstack.com/ and paste the API key into the .env file.  
-.env: 
 ```
 AVIATIONSTACK_API_KEY=''
 AVIATIONSTACK_API_2_KEY='' # You can paste the same key here or create a 2nd account (recommended).
 ```
 
-2. Install dependencies using UV:
-```bash
-uv sync
-```
+4. Run the Streamlit application in the virtual environment:
 
-Or using pip:
 ```bash
-pip install -e .
-```
-
-4. Activate the virtual environment:
-```bash
-source .venv/bin/activate  # On Unix/macOS
+uv run streamlit run app/main.py
 # or
-.venv\Scripts\activate     # On Windows
-```
-
-## Usage
-
-Run the Streamlit application:
-
-```bash
+# with the virtual environment active:
 streamlit run app/main.py
 ```
 
@@ -108,7 +107,7 @@ The application will open in your default web browser at `http://localhost:8501`
 
 ### Running Tests
 
-Execute the test suite using pytest:
+Execute the tests using pytest:
 
 ```bash
 pytest tests/
