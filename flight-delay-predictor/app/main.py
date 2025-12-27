@@ -5,7 +5,7 @@ App displays departure board, flight visualizations and predicts delays.
 
 import streamlit as st
 import pandas as pd
-import ui
+from flight_delay import ui
 from flight_delay import services
 
 
