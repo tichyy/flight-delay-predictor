@@ -81,7 +81,7 @@ pip install -r requirements.txt
 You need to sign up for a free account at https://aviationstack.com/ and paste the API key into the .env file. Both keys must be filled.
 ```
 AVIATIONSTACK_API_KEY=''
-AVIATIONSTACK_API_2_KEY='' # Must be either the same key here or a 2nd account (recommended).
+AVIATIONSTACK_API_2_KEY='' # Can be the same key or a 2nd account (recommended).
 ```
 
 4. Run the Streamlit application in the virtual environment:
