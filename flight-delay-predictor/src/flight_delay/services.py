@@ -3,17 +3,17 @@ Logic and data services for the flight delay application.
 API interactions, Caching, Data validation.
 """
 
+from datetime import time
+from pathlib import Path
 import pandas as pd
-from preprocessing import prepare_features
 import joblib
 import streamlit as st
-from pathlib import Path
-from flight_delay.api import aviationstack_client
 import requests
+from flight_delay.api import aviationstack_client
 from flight_delay.utils.dicts import AIRPORT_COORDS
-from datetime import time
+from flight_delay.data_preprocessing import prepare_features
 
-CURRENT_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 @st.cache_data(ttl=1800)
@@ -30,7 +30,9 @@ def get_timetable_df(airport_code: str, timetable_type: str) -> pd.DataFrame:
     :rtype: DataFrame
     """
     try:
-        raw_data = aviationstack_client.fetch_query("timetable", {"iataCode": airport_code, "type": timetable_type})
+        raw_data = aviationstack_client.fetch_query(
+            "timetable", {"iataCode": airport_code, "type": timetable_type}
+        )
 
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 429:
@@ -47,7 +49,7 @@ def get_timetable_df(airport_code: str, timetable_type: str) -> pd.DataFrame:
 
     if not raw_data or 'data' not in raw_data:
         return pd.DataFrame()
-    
+
     return pd.json_normalize(raw_data['data'])
 
 
@@ -59,13 +61,14 @@ def load_predictor():
 
     :return: Joblib model - XGBRegressor
     """
-    predictor_path = CURRENT_DIR.parent / 'models' / 'flight_delay_xgb.joblib'
+    predictor_path = BASE_DIR / 'models' / 'flight_delay_xgb.joblib'
     return joblib.load(predictor_path)
 
 @st.cache_data
 def predict_delay(flight_row : pd.DataFrame, df : pd.DataFrame) -> int:
     """
-    Calls prepare_features to preprocess the data and predicts the delay if the data are in the expected format. 
+    Calls prepare_features to preprocess the data and 
+    predicts the delay if the data are in the expected format. 
     Returns the predicted delay. 
     
     :param flight_row: Row with the flight to predict on.
@@ -75,29 +78,29 @@ def predict_delay(flight_row : pd.DataFrame, df : pd.DataFrame) -> int:
     :return: The predicted delay in minutes. Rounded to the nearest integer.
     :rtype: int
     """
-    Xinput = prepare_features(df_departures=df, flight_row=flight_row)
-    if Xinput.empty:
+    x_input = prepare_features(df_departures=df, flight_row=flight_row)
+    if x_input.empty:
         st.warning('Prediction failed. Error in preprocessing.')
-        return
-    
+        return None
+
     predictor = load_predictor()
 
     # XGBoost has attribute 'feature_names_in_' so this will be skipped.
     # Might be useful for future models.
     if not hasattr(predictor, 'feature_names_in_'):
-        prediction = predictor.predict(Xinput)[0]
+        prediction = predictor.predict(x_input)[0]
         return round(float(prediction))
 
     predictor_features = predictor.feature_names_in_
 
     try:
-        Xinput = Xinput[predictor_features]
+        x_input = x_input[predictor_features]
     except KeyError as e:
         st.warning(f'Error: generated row is missing columns expected by model: {e}')
-        return
+        return None
 
-    prediction = predictor.predict(Xinput)[0]
-    
+    prediction = predictor.predict(x_input)[0]
+
     return round(float(prediction))
 
 
@@ -131,7 +134,7 @@ def filter_flight(df: pd.DataFrame, flight_number: str) -> pd.DataFrame:
     """
     if df.empty:
         return pd.DataFrame()
-    
+
     df = df.copy()
     df['flight.iataNumber'] = df['flight.iataNumber'].fillna("").str.strip().str.upper()
 
@@ -139,14 +142,13 @@ def filter_flight(df: pd.DataFrame, flight_number: str) -> pd.DataFrame:
 
 
 # Maybe fix 'time' !
-def run_prediction(flight_number_input: str, flight_date_input: time, timetable_df: pd.DataFrame):
+def run_prediction(flight_number_input: str, flight_date_input, timetable_df: pd.DataFrame):
     """
     Whole prediction process. Filtering, Preprocessing, Predicting.
     
     :param flight_number_input: Flight number inputted by the user.
     :type flight_number_input: str
     :param flight_date_input: Date of the flight inputted by the user.
-    :type flight_date_input: time
     :param timetable_df: The departure timetable.
     :type timetable_df: pd.DataFrame
     """
@@ -161,7 +163,7 @@ def run_prediction(flight_number_input: str, flight_date_input: time, timetable_
 
     if flight_df.empty:
         st.error(f"Flight {flight_number} not found.")
-        return
+        return None
 
     with st.spinner("Calculating delay..."):
         delay = predict_delay(flight_row=flight_df, df=timetable_df)
@@ -189,8 +191,8 @@ def add_flight_for_visualization(destination_iata: str, predicted_delay: int, fl
 
     if destination_iata not in AIRPORT_COORDS:
         st.warning('Cannot visualize the flight. Destination coordinates unknown.')
-        return 
-    
+        return None
+
     destination_coords = AIRPORT_COORDS[destination_iata]
 
     data = [d for d in data if d['destination'] != destination_iata]

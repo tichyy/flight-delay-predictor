@@ -3,12 +3,11 @@ User interface components and rendering logic for the flight delay prediction ap
 Layout, Buttons, Input handling, Visualization
 """
 
+from datetime import date
 import streamlit as st
 import pandas as pd
-from services import get_timetable_df
-from datetime import date
-from flight_delay.utils.dicts import AIRPORT_COORDS
 import pydeck as pdk
+from flight_delay.services import get_timetable_df
 
 st.markdown(
     '''
@@ -31,12 +30,12 @@ def render_header():
 def render_airport_select() -> str:
     """
     Renders a selectbox for choosing the departure airport. 
-    There is only 'PRG' airport. I made this function for future expansion.
+    There is only 'PRG' airport. I made this function for better scalability.
 
     :return: IATA code of the selected airport
     :rtype: str
     """
-    # TODO Add more airports.
+    # Scaling: Add more airports.
     airports = ['Prague International Airport (PRG)']
     airport_codes = {'Prague International Airport (PRG)' : 'PRG'}
     selected_airport = st.selectbox('Departure Airport', airports)
@@ -83,10 +82,12 @@ def render_timetable(df : pd.DataFrame):
     if missing:
         st.warning('Timetable rendering failed. Dataframe is missing some required columns.')
         return
-    
+
     df = df.copy()
 
-    df['departure.scheduledTime'] = pd.to_datetime(df['departure.scheduledTime'], utc=True, errors='coerce')
+    df['departure.scheduledTime'] = pd.to_datetime(
+        df['departure.scheduledTime'], utc=True, errors='coerce'
+    )
 
     now = pd.Timestamp.now(tz='UTC')
     df = df[df['departure.scheduledTime'] >= now]
@@ -105,7 +106,7 @@ def render_timetable(df : pd.DataFrame):
     df_render = df[['Status', 'Scheduled Time', 'Flight Number', 'Airline', 'Destination Airport']]
 
     df_styled = df_render.style.map(
-        color_status_text, subset=['Status'], 
+        color_status_text, subset=['Status'],
     ).set_table_styles([
         {'selector': 'thead', 'props': [('background-color', '#f0f0f0'), ('color', '#000') ]},
         {'selector': 'tbody', 'props': [('background-color', '#ffffff'), ('color', '#000') ]},
@@ -132,12 +133,11 @@ def get_arc_color(delay: int) -> list[int]:
     """
     if delay < 20:
         return [0, 255, 128, 100]
-    elif delay < 45:
+    if delay < 45:
         return [255, 165, 0, 100]
-    else:
-        return [255, 0, 80, 100]
+    return [255, 0, 80, 100]
 
-@st.fragment
+
 def render_map(df: pd.DataFrame, flight_num: str):
     """
     Renders a PyDeck map with flight paths.
@@ -148,17 +148,27 @@ def render_map(df: pd.DataFrame, flight_num: str):
     :param flight_num: Latest (current) predicted flight number.
     :type flight_num: str
     """
+    if df.empty:
+        return
+    
     with st.expander("Map Controls", expanded=False):
         all_flights = df['flight_number'].unique().tolist()
-        
-        shown_flights = st.pills("Select flights to show:", options=all_flights, default=all_flights, selection_mode='multi')
-        
+
+        shown_flights = st.pills(
+            "Select flights to show:",
+            options=all_flights,
+            default=all_flights,
+            selection_mode='multi'
+        )
+
         if not shown_flights:
             st.warning(f"⚠ At least one flight must be visible. Showing flight: {flight_num}.")
-            
+
             shown_flights = [flight_num]
 
         df = df[df['flight_number'].isin(shown_flights)]
+
+    df = df.copy()
 
     df['color'] = df['predicted_delay'].apply(get_arc_color)
 
@@ -184,7 +194,9 @@ def render_map(df: pd.DataFrame, flight_num: str):
     )
 
     tooltip = {
-        "html": "<b> Flight number: </b> {flight_number} <br/> <b>Destination:</b> {destination} <br/> <b>Predicted Delay:</b> {predicted_delay} mins",
+        "html": "<b> Flight number: </b> {flight_number} <br/> "
+        "<b>Destination:</b> {destination} <br/> "
+        "<b>Predicted Delay:</b> {predicted_delay} mins",
         "style": {"backgroundColor": "steelblue", "color": "white"}
     }
 
@@ -201,7 +213,7 @@ def render_prediction_form():
     Renders the form for inputting flight number and date for the prediction.
     
     So far only todays flights are allowed because I am using free APIs. 
-    Added the date column for easier future expansion.
+    Added the date column for better scalability.
     """
     with st.form('flight_predict_form'):
         c1, c2 = st.columns([2, 1])
@@ -239,5 +251,5 @@ def render_refresh_button(airport_code: str, timetable_df: pd.DataFrame):
         new_timetable_df = get_timetable_df(airport_code=airport_code, timetable_type='departure')
         if new_timetable_df.equals(timetable_df):
             st.toast('Timetable is already up-to-date!', icon='✔️', duration=2)
-        if not new_timetable_df.empty:    
+        if not new_timetable_df.empty:
             st.session_state['timetable_df'] = new_timetable_df

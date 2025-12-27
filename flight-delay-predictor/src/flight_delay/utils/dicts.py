@@ -1,3 +1,8 @@
+"""
+Airport data constants.
+Contains airport coordinates and a list of schengen airports.
+"""
+
 # Source: Generated with ChatGPT, Gemini
 AIRPORT_COORDS = {
     'PRG': [14.2632, 50.1018],
@@ -77,11 +82,12 @@ AIRPORT_COORDS = {
     'KEF': [-22.6056, 63.9850],
     'PEK': [116.4074, 39.9042],
     'EVN': [44.5177, 40.1475],
-    'KUT': [42.1769, 42.1769],
+    'KUT': [42.4655, 42.1820],
     'PUJ': [-68.3630, 18.5670],
-    'RMO': [46.9352, 28.9349],
-    'KSC': [48.6729, 21.2374],
-    'CIA': [41.7992, 12.5932]
+    'RMO': [28.9349, 46.9352],
+    'KSC': [21.2374, 48.6729],
+    'CIA': [12.5932, 41.7992],
+    'HOG': [-76.3057, 20.7886]
 }
 
 # Source: Generated with Gemini

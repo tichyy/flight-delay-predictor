@@ -2,17 +2,18 @@
 This module contains the complete data preprocessing for the flight prediction ML model.
 It prepares wanted features including external weather and airport traffic data.
 """
+
+import json
+from pathlib import Path
 import pandas as pd
 import requests
 import numpy as np
-import json
-from pathlib import Path
-from flight_delay.api import aviationstack_client
 import streamlit as st
+from flight_delay.api import aviationstack_client
 from flight_delay.utils.dicts import SCHENGEN_AIRPORTS
 
 
-CURRENT_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, one_hot = False) -> pd.DataFrame:
@@ -30,7 +31,7 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     :rtype: DataFrame
     """
     df_departures = df_departures.copy()
-    
+
     schengen_airports = SCHENGEN_AIRPORTS
 
     flight_row = flight_row[[
@@ -52,7 +53,7 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     })
 
     if pd.isna(flight_row['scheduled_time'].iloc[0]):
-        flight_row = flight_row.replace(flight_row['scheduled_time'], flight_row['actual_time']) 
+        flight_row = flight_row.replace(flight_row['scheduled_time'], flight_row['actual_time'])
 
     flight_row['scheduled_time'] = pd.to_datetime(flight_row['scheduled_time'])
     flight_row['actual_time'] = pd.to_datetime(flight_row['actual_time'])
@@ -80,10 +81,10 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
 
     print(flight_row.columns)
 
-    with open(CURRENT_DIR.parent/'data'/'processed'/'fill_values.json', 'r') as f:
-        FILL_VALUES = json.load(f)
+    with open(BASE_DIR/'data'/'processed'/'fill_values.json', 'r', encoding='utf-8') as f:
+        fill_values = json.load(f)
 
-    flight_row = flight_row.fillna(value=FILL_VALUES)
+    flight_row = flight_row.fillna(value=fill_values).infer_objects(copy=False)
 
     flight_row.drop(columns='actual_time', inplace=True)
 
@@ -95,19 +96,19 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
 
     categorical = ['terminal', 'airline', 'destination_airport']
 
-    with open(CURRENT_DIR.parent/'data'/'processed'/'categories.json', 'r') as f:
-        CATEGORIES = json.load(f)
+    with open(BASE_DIR/'data'/'processed'/'categories.json', 'r', encoding='utf-8') as f:
+        categories = json.load(f)
 
     for col in flight_row.columns:
         print(f'{col} : {flight_row[col].iloc[0]}')
 
-    CATEGORIES['destination_airport'] = [airport.upper() for airport in CATEGORIES['destination_airport']]
-    CATEGORIES['airline'] = [airline.upper() for airline in CATEGORIES['airline']]
+    categories['destination_airport'] = [airport.upper() for airport in categories['destination_airport']]
+    categories['airline'] = [airline.upper() for airline in categories['airline']]
 
     if not one_hot:
         for col in categorical:
             cat_type = pd.api.types.CategoricalDtype(
-                categories=CATEGORIES[col],
+                categories=categories[col],
                 ordered=False
             )
             flight_row[col] = flight_row[col].astype(cat_type).cat.codes
@@ -126,14 +127,14 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     # for col in flight_row.columns:
     #     print(f'{col} : {flight_row[col].iloc[0]}')
 
-    # TODO maybe change later
+    # Might change this later.
     # Currently we are ignoring the 'delay' displayed by the airport.
     flight_row.drop(columns='delay', inplace=True)
 
     if flight_row.isnull().sum().sum() == 0:
         return flight_row
-    else:
-        return pd.DataFrame()
+
+    return pd.DataFrame()
 
 
 @st.cache_data(ttl=1800)
@@ -145,13 +146,13 @@ def get_weather() -> pd.DataFrame:
     :return: Hourly weather data for today.
     :rtype: DataFrame
     """
-    LAT = 50.1008
-    LON = 14.2600
+    prg_lat = 50.1008
+    prg_lon = 14.2600
 
     url = 'https://api.open-meteo.com/v1/forecast'
     params = {
-        'latitude': LAT,
-        'longitude': LON,
+        'latitude': prg_lat,
+        'longitude': prg_lon,
         'hourly': 'temperature_2m,precipitation,wind_speed_10m',
         'wind_speed_unit': 'kmh',
         'timezone': 'Europe/Prague',
@@ -161,7 +162,7 @@ def get_weather() -> pd.DataFrame:
         response = requests.get(url, params=params, timeout=5)
         response.raise_for_status()
         data = response.json()
-        
+
         # parse the hourly data
         hourly = data['hourly']
         df_weather = pd.DataFrame({
@@ -186,15 +187,13 @@ def add_weather(flight_row : pd.DataFrame) -> pd.DataFrame:
     :return: Row with added weather features.
     :rtype: DataFrame
     """
-    LAT = 50.1008
-    LON = 14.2600
-    
+
     flight_hour = flight_row['scheduled_time'].dt.round('h').iloc[0]
 
     df_weather = get_weather()
 
     match = df_weather[df_weather['time'] == flight_hour]
-        
+
     if not match.empty:
         # Assign values to the flight_row
         flight_row['temp_c'] = match.iloc[0]['temp_c']
