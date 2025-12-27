@@ -60,11 +60,11 @@ git clone <repository-url>
 cd flight-delay-predictor
 ```
 5. Create a .env file in the flight-delay-predictor directory.
-You need to create a free account on https://aviationstack.com/ and paste the API key into the .env file.
+You need to create a free account on https://aviationstack.com/ and paste the API key into the .env file.  
 .env: 
 ```
 AVIATIONSTACK_API_KEY=''
-AVIATIONSTACK_API_2_KEY='' # You can paste the same key here or  create a 2nd account (recommended).
+AVIATIONSTACK_API_2_KEY='' # You can paste the same key here or create a 2nd account (recommended).
 ```
 
 2. Install dependencies using UV:
@@ -120,17 +120,13 @@ The project uses `pyproject.toml` for configuration and dependency management.
 
 ## Data
 
-The application uses historical flight data from January to April 2025, including:
+The model is trained on historical flight data from January to April 2025, including:
 - Departure schedules
 - Arrival schedules
 - Weather conditions
 
-Data preprocessing and exploration notebooks are available in the `notebooks/` directory.
-
-## Model
-
-The prediction model is an XGBoost classifier trained on historical flight and weather data. The trained model is stored in `models/flight_delay_xgb.joblib`.
+Data preprocessing and exploration notebooks are in the `notebooks/` directory.
 
 ## API Integration
 
-The application integrates with the AviationStack API to fetch real-time flight information.
+The application integrates with the AviationStack API and Open-Meteo API to fetch real-time flight information.

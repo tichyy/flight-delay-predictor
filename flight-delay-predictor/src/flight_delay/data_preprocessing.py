@@ -79,7 +79,7 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     flight_row['weekday_cos'] = np.cos(2 * np.pi * flight_row['day_of_week'] / 7)
     flight_row.drop(columns=['day_of_week'],inplace=True)
 
-    print(flight_row.columns)
+    # print(flight_row.columns)
 
     with open(BASE_DIR/'data'/'processed'/'fill_values.json', 'r', encoding='utf-8') as f:
         fill_values = json.load(f)
@@ -99,8 +99,8 @@ def prepare_features(df_departures : pd.DataFrame, flight_row : pd.DataFrame, on
     with open(BASE_DIR/'data'/'processed'/'categories.json', 'r', encoding='utf-8') as f:
         categories = json.load(f)
 
-    for col in flight_row.columns:
-        print(f'{col} : {flight_row[col].iloc[0]}')
+    # for col in flight_row.columns:
+    #     print(f'{col} : {flight_row[col].iloc[0]}')
 
     categories['destination_airport'] = [airport.upper() for airport in categories['destination_airport']]
     categories['airline'] = [airline.upper() for airline in categories['airline']]
