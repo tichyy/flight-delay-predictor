@@ -24,13 +24,10 @@ flight-delay-predictor/
 │       ├── services.py         # Logic and prediction services
 │       └── ui.py               # UI rendering
 ├── data/
-│   ├── raw/                    # Raw flight and weather data
-│   │   ├── arrivals_250101_250430.csv
-│   │   ├── departures_250101_250430.csv
+│   ├── raw/                    # Raw weather data, no flight data due to licensing restrictions.
 │   │   └── weather_250101_250430.csv
 │   └── processed/              # Processed data and configurations
 │       ├── categories.json
-│       ├── data_exploration.csv
 │       └── fill_values.json
 ├── models/
 │   └── flight_delay_xgb.joblib # Trained XGBoost model
@@ -127,6 +124,9 @@ The model is trained on historical flight data from January to April 2025, inclu
 - Weather conditions
 
 Data preprocessing and exploration notebooks are in the `notebooks/` directory.
+
+This project uses the AviationEdge API.
+Due to licensing restrictions, raw data is NOT included in this repository.
 
 ## API Integration
 
