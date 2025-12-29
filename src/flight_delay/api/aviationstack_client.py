@@ -7,6 +7,10 @@ import streamlit as st
 
 AVIATIONSTACK_BASE_URL = "https://api.aviationstack.com/v1/"
 
+API_KEY_ARRIVAL = st.secrets.get('AVIATIONSTACK_2_API_KEY')
+API_KEY_DEPARTURE = st.secrets.get('AVIATIONSTACK_API_KEY')
+
+
 def post_query(endpoint: str, params: dict = None) -> dict:
     """
     Executes a GET request to the AviationStack API.
@@ -22,9 +26,9 @@ def post_query(endpoint: str, params: dict = None) -> dict:
         params = {}
 
     if 'type' in params and params['type'] == 'arrival':
-        api_key = st.secrets['AVIATIONSTACK_2_API_KEY']
+        api_key = API_KEY_ARRIVAL
     else:
-        api_key = st.secrets['AVIATIONSTACK_API_KEY']
+        api_key = API_KEY_DEPARTURE
 
     if not api_key:
         raise ValueError('AVIATIONSTACK_API_KEY variable is missing!')
