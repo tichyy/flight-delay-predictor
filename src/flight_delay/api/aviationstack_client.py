@@ -22,9 +22,9 @@ def post_query(endpoint: str, params: dict = None) -> dict:
         params = {}
 
     if 'type' in params and params['type'] == 'arrival':
-        api_key = st.secrets('AVIATIONSTACK_2_API_KEY')
+        api_key = st.secrets['AVIATIONSTACK_2_API_KEY']
     else:
-        api_key = st.secrets('AVIATIONSTACK_API_KEY')
+        api_key = st.secrets['AVIATIONSTACK_API_KEY']
 
     if not api_key:
         raise ValueError('AVIATIONSTACK_API_KEY variable is missing!')
