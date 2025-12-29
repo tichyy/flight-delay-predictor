@@ -1,4 +1,4 @@
-# BI-PYT Semestral Work - Flight Delay Prediction app with Streamlit
+# BI-PYT Semestral Project - Flight Delay Prediction app with Streamlit
 
 This project is a Streamlit-based web application designed to display todays airport departure boards and predict flight delays with ML.
 
@@ -100,9 +100,11 @@ The application will open in your default web browser at `http://localhost:8501`
 ### Using the App
 
 1. **Select Airport**: Choose an airport from the dropdown menu (limited to PRG only)
-2. **View Departure Board**: See the current flight schedule
+2. **View Departure Board**: 
+   - See the current flight schedule
+   - Click a flight number cell and copy it (CTRL+C)
 3. **Predict Delay**: 
-   - Enter a flight number (limited to flight departuring from PRG Airport today)
+   - Enter or paste a flight number, limited to flights departuring from PRG Airport TODAY
    - Select a departure date (limited to TODAY)
    - Click "Predict Delay"
 4. **View Results**: See the predicted delay time and flight visualization on the map
