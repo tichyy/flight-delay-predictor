@@ -2,12 +2,8 @@
 API client interface for the AviationStack flight data service.
 Handles the HTTP communication with the AviationStack API.
 """
-import os
 import requests
 import streamlit as st
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
 
 AVIATIONSTACK_BASE_URL = "https://api.aviationstack.com/v1/"
 
@@ -26,12 +22,12 @@ def post_query(endpoint: str, params: dict = None) -> dict:
         params = {}
 
     if 'type' in params and params['type'] == 'arrival':
-        api_key = os.getenv("AVIATIONSTACK_2_API_KEY")
+        api_key = st.secrets('AVIATIONSTACK_2_API_KEY')
     else:
-        api_key = os.getenv("AVIATIONSTACK_API_KEY")
+        api_key = st.secrets('AVIATIONSTACK_API_KEY')
 
     if not api_key:
-        raise ValueError("AVIATIONSTACK_API_KEY variable is missing!")
+        raise ValueError('AVIATIONSTACK_API_KEY variable is missing!')
 
     params['access_key'] = api_key
     url = f"{AVIATIONSTACK_BASE_URL}{endpoint}"
@@ -57,5 +53,5 @@ def fetch_query(endpoint: str, params: dict = None) -> dict:
     """
     res = post_query(endpoint, params)
     if res is None:
-        raise ValueError("Empty API response - prevented caching")
+        raise ValueError('Empty API response - prevented caching')
     return res
