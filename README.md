@@ -39,7 +39,8 @@ flight-delay-predictor/
 │   ├── test_services.py
 │   └── test_ui.py
 ├── pyproject.toml              # Project configuration
-└── uv.lock                     # Dependency lock file
+├── uv.lock                     # Dependency lock file
+└── requirements.txt            # Python dependencies for pip
 ```
 
 ## Installation
