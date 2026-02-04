@@ -39,8 +39,7 @@ flight-delay-predictor/
 │   ├── test_services.py
 │   └── test_ui.py
 ├── pyproject.toml              # Project configuration
-├── uv.lock                     # Dependency lock file
-└── requirements.txt            # Python dependencies for pip
+└── uv.lock                     # Dependency lock file
 ```
 
 ## Installation
@@ -72,7 +71,7 @@ uv sync
 python3 -m venv .venv 
 source .venv/bin/activate     # Linux/MacOS
 # .venv\Scripts\Activate.ps1  # Windows PowerShell
-pip install -r requirements.txt
+pip install -e .
 ```
 
 3. Create a .streamlit directory in the flight-delay-predictor directory. Create a secrets.toml file in the .streamlit directory.
